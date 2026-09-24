@@ -4,6 +4,7 @@ import EditorPage from './pages/EditorPage.jsx'
 import MergePage from './pages/MergePage.jsx'
 import RulesPage from './pages/RulesPage.jsx'
 import QualityPage from './pages/QualityPage.jsx'
+import SpeakersPage from './pages/SpeakersPage.jsx'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/projects/:id" element={<EditorPage />} />
           <Route path="/projects/:id/rules" element={<RulesPage />} />
           <Route path="/projects/:id/quality" element={<QualityPage />} />
+          <Route path="/projects/:id/speakers" element={<SpeakersPage />} />
           <Route path="/merge" element={<MergePage />} />
         </Routes>
       </main>

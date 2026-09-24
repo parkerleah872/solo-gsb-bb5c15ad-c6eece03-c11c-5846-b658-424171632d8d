@@ -73,6 +73,25 @@ class QualityScanCompareRequest(BaseModel):
     scanIdB: str
 
 
+# ---------- speaker normalization ----------
+
+class SpeakerMapping(BaseModel):
+    """One old-name → target-name row configured in the workbench."""
+    from_: str = Field(default="", alias="from")
+    to: str = ""
+
+    model_config = {"populate_by_name": True}
+
+
+class SpeakerNormalizationRequest(BaseModel):
+    """Multiple old→target rows; chains collapse to the final name.
+
+    Empty targets and cyclic mappings are rejected (400) by both the preview
+    and the apply endpoint, so a partial / invalid plan can never be saved.
+    """
+    mappings: list[SpeakerMapping] = []
+
+
 # ---------- quote search ----------
 
 class QuoteSearchRequest(BaseModel):

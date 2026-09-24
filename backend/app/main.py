@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db, importer, quality, quotes, rules
+from . import db, importer, quality, quotes, rules, speakers
 from .merge import merge_documents
 from .schemas import (
     DocumentIn,
@@ -21,6 +21,7 @@ from .schemas import (
     QuoteSearchRequest,
     RuleIn,
     RulePreviewRequest,
+    SpeakerNormalizationRequest,
 )
 
 app = FastAPI(title="访谈音频校注", version="1.0.0")
@@ -380,6 +381,52 @@ def compare_quality_scans(project_id: str,
         return quality.compare_scans(base_scan, target_scan)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---------- speaker normalization workbench ----------
+
+@app.post("/api/projects/{project_id}/speaker-normalization/preview")
+def preview_speaker_normalization(
+        project_id: str, payload: SpeakerNormalizationRequest) -> dict:
+    """Preview where every existing speaker name ends up.
+
+    Aggregates names from the saved transcript segments, annotations and the
+    exact speaker conditions of the project's rules.  Empty targets and
+    cyclic mappings return 400 and nothing is written.
+    """
+    project = _get_or_404(project_id)
+    raw = [m.model_dump(by_alias=True) for m in payload.mappings]
+    try:
+        mappings = speakers.normalize_mappings(raw)
+        speakers.validate_mappings(mappings)
+        preview = speakers.build_preview(project["document"],
+                                         db.list_rules(project_id), raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    preview["projectId"] = project_id
+    preview["projectName"] = project["name"]
+    return preview
+
+
+@app.post("/api/projects/{project_id}/speaker-normalization/apply")
+def apply_speaker_normalization(
+        project_id: str, payload: SpeakerNormalizationRequest) -> dict:
+    """Apply the mappings to all three speaker fields in one transaction.
+
+    Segments, annotations and rule speaker conditions are updated together;
+    record ids and every other field stay untouched.  An invalid plan (empty
+    target / cycle) or any write failure rolls the whole operation back.
+    """
+    _get_or_404(project_id)
+    raw = [m.model_dump(by_alias=True) for m in payload.mappings]
+    try:
+        result = db.normalize_project_speakers(project_id, raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if result is None:  # project vanished between the checks
+        raise HTTPException(status_code=404, detail="项目不存在")
+    result["projectId"] = project_id
+    return result
 
 
 # ---------- three-way merge ----------

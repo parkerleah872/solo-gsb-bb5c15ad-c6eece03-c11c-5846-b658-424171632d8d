@@ -223,6 +223,9 @@ export default function EditorPage() {
           {dirty && <span className="badge warn">未保存</span>}
         </div>
         <div className="head-actions">
+          <Link className="btn" to={`/projects/${id}/speakers`}>
+            🪪 说话人归一
+          </Link>
           <Link className="btn" to={`/projects/${id}/quality`}>
             🧪 校注质检
           </Link>

@@ -91,4 +91,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ query, speaker, caseSensitive, document }),
     }),
+
+  // ----- speaker normalization -----
+  previewSpeakerNormalization: (projectId, mappings) =>
+    request(`/projects/${projectId}/speaker-normalization/preview`, {
+      method: 'POST',
+      body: JSON.stringify({ mappings }),
+    }),
+  applySpeakerNormalization: (projectId, mappings) =>
+    request(`/projects/${projectId}/speaker-normalization/apply`, {
+      method: 'POST',
+      body: JSON.stringify({ mappings }),
+    }),
 };

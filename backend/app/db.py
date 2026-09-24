@@ -487,6 +487,63 @@ def deepcopy_json(value):
     return json.loads(json.dumps(value, ensure_ascii=False))
 
 
+# ---------- speaker normalization ----------
+
+def normalize_project_speakers(project_id: str, raw_mappings: list[dict]) -> dict | None:
+    """Rename speakers across segments, annotations and rule conditions.
+
+    All three sources are rewritten in one transaction: the document JSON and
+    the rule table are updated and committed together, and any failure
+    (including an invalid mapping plan) rolls back, so a failure never leaves
+    a partially renamed project.  Returns the refreshed project, the
+    confirmation preview and the changed-record counts; ``None`` when the
+    project does not exist.
+    """
+    from . import speakers as speaker_engine
+
+    mappings = speaker_engine.normalize_mappings(raw_mappings)
+    speaker_engine.validate_mappings(mappings)
+    with _lock:
+        try:
+            project_row = _conn.execute(
+                "SELECT * FROM projects WHERE id = ?", (project_id,)
+            ).fetchone()
+            if project_row is None:
+                return None
+            rule_rows = _conn.execute(
+                "SELECT * FROM annotation_rules WHERE project_id = ?",
+                (project_id,),
+            ).fetchall()
+            doc = json.loads(project_row["document"])
+            rules = [_rule_to_dict(r) for r in rule_rows]
+            original_speakers = {r["id"]: r["speaker"] for r in rules}
+            preview = speaker_engine.build_preview(doc, rules, raw_mappings)
+            changed = speaker_engine.apply_mappings(doc, rules, mappings)
+
+            now = _now()
+            _conn.execute(
+                "UPDATE projects SET document = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(doc, ensure_ascii=False), now, project_id),
+            )
+            for rule in rules:
+                if rule["speaker"] == original_speakers[rule["id"]]:
+                    continue
+                _conn.execute(
+                    "UPDATE annotation_rules SET speaker = ?, updated_at = ?"
+                    " WHERE id = ?",
+                    (rule["speaker"], now, rule["id"]),
+                )
+            _conn.commit()
+        except Exception:
+            _conn.rollback()
+            raise
+    return {
+        "project": get_project(project_id),
+        "preview": preview,
+        "changed": changed,
+    }
+
+
 # ---------- quality-check scan history ----------
 
 def _scan_list_to_dict(row: sqlite3.Row) -> dict:

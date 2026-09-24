@@ -631,3 +631,30 @@ code {
 .qc-focus-hint.speaking-focus-hint {
   background: #f4effc; border-color: #d8caf0; color: #4d3380;
 }
+
+/* ---------- speaker normalization ---------- */
+.sp-mapping-list { display: flex; flex-direction: column; gap: 8px; }
+.sp-mapping-row { display: flex; align-items: center; gap: 10px; }
+.sp-mapping-row input { flex: 1; min-width: 0; }
+.sp-arrow { flex: none; color: var(--muted); font-size: 16px; }
+
+.sp-preview .stats-grid { margin-bottom: 12px; }
+.sp-target-groups {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px; margin: 8px 0 4px;
+}
+.sp-target-card {
+  border: 1px solid var(--border); border-left: 4px solid var(--primary);
+  border-radius: 6px; padding: 8px 12px; background: #f8faff;
+}
+.sp-target-head {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+}
+.sp-target-counts { margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+.sp-name-table { margin-top: 6px; }
+.sp-name-table tr.sp-row-changed { background: #f3f7ff; }
+.sp-name-table .sp-num {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.sp-dest { color: var(--primary); font-weight: 600; word-break: break-word; }
