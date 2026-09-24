@@ -168,6 +168,57 @@ def delete_project(project_id: str) -> bool:
     return cur.rowcount > 0
 
 
+def rename_speakers(project_id: str, resolved: dict) -> dict | None:
+    """Rewrite speaker names in segments, annotations and rules at once.
+
+    ``resolved`` maps an existing (stripped) name to its final target —
+    chains must already be collapsed by the engine.  Segment / annotation
+    ids and every other field are kept; only the ``speaker`` field changes.
+    The document update and all rule updates happen in one transaction, so a
+    failure rolls everything back and leaves no partial modification.
+    Returns the refreshed project plus per-source change counts.
+    """
+    counts = {"segments": 0, "annotations": 0, "rules": 0}
+    with _lock:
+        project_row = _conn.execute(
+            "SELECT document FROM projects WHERE id = ?", (project_id,)
+        ).fetchone()
+        if project_row is None:
+            return None
+        doc = json.loads(project_row["document"])
+        now = _now()
+        try:
+            _conn.execute("BEGIN")
+            for seg in doc.get("segments", []) or []:
+                key = seg.get("speaker").strip() \
+                    if isinstance(seg.get("speaker"), str) else ""
+                if key in resolved:
+                    seg["speaker"] = resolved[key]
+                    counts["segments"] += 1
+            for ann in doc.get("annotations", []) or []:
+                key = ann.get("speaker").strip() \
+                    if isinstance(ann.get("speaker"), str) else ""
+                if key in resolved:
+                    ann["speaker"] = resolved[key]
+                    counts["annotations"] += 1
+            _conn.execute(
+                "UPDATE projects SET document = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(doc, ensure_ascii=False), now, project_id),
+            )
+            for old_name, new_name in resolved.items():
+                cur = _conn.execute(
+                    "UPDATE annotation_rules SET speaker = ?, updated_at = ?"
+                    " WHERE project_id = ? AND speaker = ?",
+                    (new_name, now, project_id, old_name),
+                )
+                counts["rules"] += cur.rowcount
+            _conn.commit()
+        except Exception:
+            _conn.rollback()
+            raise
+    return {"project": get_project(project_id), "counts": counts}
+
+
 # ---------- annotation rules ----------
 
 def _rule_to_dict(row: sqlite3.Row) -> dict:

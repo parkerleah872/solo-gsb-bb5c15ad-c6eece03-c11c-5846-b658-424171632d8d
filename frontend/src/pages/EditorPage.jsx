@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
 import Timeline from '../components/Timeline.jsx'
 import SegmentList from '../components/SegmentList.jsx'
@@ -12,6 +12,7 @@ import {
 
 export default function EditorPage() {
   const { id } = useParams()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [project, setProject] = useState(null)
   const [doc, setDoc] = useState(emptyDocument())
@@ -34,6 +35,22 @@ export default function EditorPage() {
       setName(p.name)
     }).catch((e) => setError(e.message))
   }, [id])
+
+  // Returning from the speaker-normalization workbench: it already saved the
+  // project, and this page's reload above reads the new names. Show a toast
+  // summarizing the committed change (and drop the navigation state once).
+  useEffect(() => {
+    const info = location.state?.speakerRename
+    if (!info) return undefined
+    setMessage(
+      `说话人归一已保存：更新转写片段 ${info.segments} 条 · 校注 ` +
+      `${info.annotations} 条 · 规则 ${info.rules} 条；引语检索与发言时长` +
+      '均使用新名称。')
+    const timer = setTimeout(() => setMessage(''), 6000)
+    window.history.replaceState(
+      { ...window.history.state, usr: null }, '')
+    return () => clearTimeout(timer)
+  }, [location.state])
 
   // Deep link from the quality-check workbench: ?ann=…&focusStart=…&focusEnd=…
   useEffect(() => {
@@ -225,6 +242,9 @@ export default function EditorPage() {
         <div className="head-actions">
           <Link className="btn" to={`/projects/${id}/quality`}>
             🧪 校注质检
+          </Link>
+          <Link className="btn" to={`/projects/${id}/speakers`}>
+            🏷️ 说话人归一
           </Link>
           <Link className="btn" to={`/projects/${id}/rules`}>
             ⚙️ 规则批量标注

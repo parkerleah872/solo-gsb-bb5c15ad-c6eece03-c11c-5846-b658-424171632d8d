@@ -120,6 +120,9 @@ export default function ProjectListPage() {
             </div>
             <div className="card-actions">
               <Link className="btn small" to={`/projects/${p.id}`}>打开</Link>
+              <Link className="btn small" to={`/projects/${p.id}/speakers`}>
+                说话人归一
+              </Link>
               <Link className="btn small" to={`/projects/${p.id}/rules`}>
                 规则标注
               </Link>

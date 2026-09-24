@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db, importer, quality, quotes, rules
+from . import db, importer, quality, quotes, rules, speakers
 from .merge import merge_documents
 from .schemas import (
     DocumentIn,
@@ -21,6 +21,7 @@ from .schemas import (
     QuoteSearchRequest,
     RuleIn,
     RulePreviewRequest,
+    SpeakerRenameRequest,
 )
 
 app = FastAPI(title="访谈音频校注", version="1.0.0")
@@ -191,6 +192,59 @@ def quote_search(project_id: str, payload: QuoteSearchRequest) -> dict:
     result["projectId"] = project_id
     result["projectName"] = project["name"]
     return result
+
+
+# ---------- speaker normalization workbench ----------
+
+def _mapping_payload(payload: SpeakerRenameRequest) -> list[dict]:
+    return [{"from": m.from_name, "to": m.to_name} for m in payload.mappings]
+
+
+@app.post("/api/projects/{project_id}/speaker-rename/preview")
+def speaker_rename_preview(project_id: str, payload: SpeakerRenameRequest) -> dict:
+    """Aggregate existing speaker names and preview each name's destination.
+
+    Chained mappings are collapsed to the final name; empty targets and
+    cycles return 400 before any write happens.
+    """
+    project = _get_or_404(project_id)
+    try:
+        plan = speakers.plan_rename(
+            project["document"], db.list_rules(project_id),
+            _mapping_payload(payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    plan["projectId"] = project_id
+    plan["projectName"] = project["name"]
+    return plan
+
+
+@app.post("/api/projects/{project_id}/speaker-rename")
+def speaker_rename(project_id: str, payload: SpeakerRenameRequest) -> dict:
+    """Commit the renaming across segments, annotations and rules.
+
+    The three speaker fields are rewritten in one transaction; record ids
+    and every other field are preserved, and a failure rolls the whole
+    operation back.
+    """
+    _get_or_404(project_id)
+    try:
+        resolved_map = speakers.resolve_mappings(_mapping_payload(payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    final_map = {old: info["final"] for old, info in resolved_map.items()}
+    result = db.rename_speakers(project_id, final_map)
+    if result is None:  # project vanished between the checks
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return {
+        "project": result["project"],
+        "counts": result["counts"],
+        "renamed": [
+            {"from": old, "to": info["to"], "final": info["final"],
+             "chain": list(info["chain"])}
+            for old, info in sorted(resolved_map.items())
+        ],
+    }
 
 
 # ---------- rule-based batch annotation ----------

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectIn(BaseModel):
@@ -87,3 +87,17 @@ class QuoteSearchRequest(BaseModel):
     speaker: str | None = None
     caseSensitive: bool = False
     document: DocumentIn | None = None
+
+
+# ---------- speaker normalization ----------
+
+class SpeakerMappingIn(BaseModel):
+    """One old-name -> target-name mapping (chains collapse server-side)."""
+    model_config = ConfigDict(populate_by_name=True)
+    from_name: str = Field(default="", alias="from")
+    to_name: str = Field(default="", alias="to")
+
+
+class SpeakerRenameRequest(BaseModel):
+    """Mapping set for the speaker-normalization preview / commit."""
+    mappings: list[SpeakerMappingIn] = []

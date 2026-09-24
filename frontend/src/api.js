@@ -91,4 +91,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ query, speaker, caseSensitive, document }),
     }),
+
+  // ----- speaker normalization -----
+  previewSpeakerRename: (projectId, mappings) =>
+    request(`/projects/${projectId}/speaker-rename/preview`, {
+      method: 'POST',
+      body: JSON.stringify({ mappings }),
+    }),
+  renameSpeakers: (projectId, mappings) =>
+    request(`/projects/${projectId}/speaker-rename`, {
+      method: 'POST',
+      body: JSON.stringify({ mappings }),
+    }),
 };
